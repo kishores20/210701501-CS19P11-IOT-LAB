@@ -1,0 +1,81 @@
+#include <SPI.h>
+#include <MFRC522.h>
+#include <Arduino.h>
+#define RST_PIN 9
+#define SS_PIN 10
+#define BUS1_PIN 6
+#define BUS2_PIN 7
+// Define UID values for bus1 and bus2
+byte BUS1_UID[] = {0xF3, 0x57, 0x02, 0x0E}; // Bus1 UID
+byte BUS2_UID[] = {0xC3, 0x9A, 0x69, 0x13}; // Bus2 UID
+MFRC522 mfrc522(SS_PIN, RST_PIN);
+MFRC522::MIFARE_Key key;
+MFRC522::StatusCode status;
+int blockNum = 2;
+byte bufferLen = 18;
+byte readBlockData[18];
+void setup() {
+Serial.begin(9600);
+pinMode(BUS1_PIN, OUTPUT);
+pinMode(BUS2_PIN, OUTPUT);
+SPI.begin();
+}
+void loop() {
+mfrc522.PCD_Init();
+if (!mfrc522.PICC_IsNewCardPresent()) { return; }
+if (!mfrc522.PICC_ReadCardSerial()) { return; }
+Serial.println();
+Serial.println(F("Reading last data from RFID..."));
+ReadDataFromBlock(blockNum, readBlockData);
+Serial.println();
+Serial.print(F("Last data in RFID:"));
+Serial.print(blockNum);
+Serial.print(F(" --> "));
+Serial.print(String((char*)readBlockData));
+Serial.println();
+// Compare UID with predefined values
+if (compareUID(mfrc522.uid.uidByte, BUS1_UID)) {
+Serial.println("Bus 1 detected");
+digitalWrite(BUS1_PIN, HIGH);
+delay(500);
+digitalWrite(BUS1_PIN, LOW);
+22
+} else if (compareUID(mfrc522.uid.uidByte, BUS2_UID)) {
+Serial.println("Bus 2 detected");
+digitalWrite(BUS2_PIN, HIGH);
+delay(500);
+digitalWrite(BUS2_PIN, LOW);
+}
+}
+void ReadDataFromBlock(int blockNum, byte readBlockData[]) {
+// Prepare the key for authentication
+for (byte i = 0; i < 6; i++) {
+key.keyByte[i] = 0xFF;
+}
+// Authenticate the desired data block for Read access using Key A
+status = mfrc522.PCD_Authenticate(MFRC522::PICC_CMD_MF_AUTH_KEY_A, blockNum, &key, &(mfrc522.uid));
+if (status != MFRC522::STATUS_OK){
+Serial.print("Authentication failed for Read: ");
+Serial.println(mfrc522.GetStatusCodeName(status));
+return;
+} else {
+Serial.println("Authentication success");
+}
+// Read data from the Block
+status = mfrc522.MIFARE_Read(blockNum, readBlockData, &bufferLen);
+if (status != MFRC522::STATUS_OK) {
+Serial.print("Reading failed: ");
+Serial.println(mfrc522.GetStatusCodeName(status));
+return;
+} else {
+Serial.println("Block was read successfully");
+}
+}
+bool compareUID(byte* uid1, byte* uid2) {
+for (int i = 0; i < 4; i++) {
+if (uid1[i] != uid2[i]) {
+return false;
+}
+}
+return true;
+}
